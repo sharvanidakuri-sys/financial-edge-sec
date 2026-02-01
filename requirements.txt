@@ -1,2 +1,7 @@
 streamlit
+requests
+pandas
+numpy
 pymupdf
+scikit-learn
+
