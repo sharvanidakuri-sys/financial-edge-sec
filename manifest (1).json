@@ -1,15 +1,7 @@
-{
-  "short_name": "Streamlit",
-  "name": "Streamlit",
-  "icons": [
-    {
-      "src": "favicon_512.png",
-      "type": "image/png",
-      "sizes": "512x512"
-    }
-  ],
-  "start_url": "/",
-  "display": "standalone",
-  "theme_color": "#ffffff",
-  "background_color": "#ffffff"
-}
+"icons": [
+  {
+    "src": "https://raw.githubusercontent.com/sharvanidakuri-sys/financial-edge-sec/main/logo.png",
+    "sizes": "512x512",
+    "type": "image/png"
+  }
+]
