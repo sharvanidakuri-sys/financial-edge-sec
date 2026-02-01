@@ -1,7 +1,4 @@
 streamlit
 requests
-pandas
-numpy
+beautifulsoup4
 pymupdf
-scikit-learn
-
