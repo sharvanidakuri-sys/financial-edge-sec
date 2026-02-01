@@ -1,6 +1,3 @@
-st.markdown("""
-<link rel="manifest" href="https://raw.githubusercontent.com/sharvanidakuri-sys/financial-edge-sec/main/manifest.json">
-""", unsafe_allow_html=True)
 import streamlit as st
 import requests
 import fitz  # PyMuPDF
@@ -168,4 +165,5 @@ else:
         st.markdown(f"### Entry {i}")
 
         st.code(h)
+
 
