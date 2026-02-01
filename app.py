@@ -6,7 +6,7 @@ import re
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
-    page_title="Financial Edge – SEC EDGAR Analyzer",
+    page_title="Financial  – SEC EDGAR Analyzer",
     layout="wide"
 )
 
@@ -157,10 +157,11 @@ This response is suitable for academic and journal submission.
         st.session_state.history.append(answer)
 
 # ---------------- HISTORY ----------------
-st.subheader("📚 History (Journal Appendix Ready)")
+st.subheader("📚 History ")
 if not st.session_state.history:
     st.info("No queries yet.")
 else:
     for i, h in enumerate(reversed(st.session_state.history), 1):
         st.markdown(f"### Entry {i}")
+
         st.code(h)
