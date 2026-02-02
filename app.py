@@ -133,7 +133,7 @@ with left:
         st.markdown(f"🔗 **Official Source:** {source_link}")
 
 with right:
-    st.subheader("Project Notes")
+    st.subheader("Project Note")
     st.markdown(
         """
         ✔ Uses only SEC EDGAR data  
@@ -141,4 +141,5 @@ with right:
         ✔ 100 % SEC based content  
         """
     )
+
 
