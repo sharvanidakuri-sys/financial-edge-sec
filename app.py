@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import fitz  # PyMuPDF
 import re
+from bs4 import BeautifulSoup
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
@@ -9,164 +10,134 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------------- UI HEADER ----------------
-st.markdown(
-    "<h1 style='text-align:center;'>📊 Financial Edge – SEC EDGAR Analyzer</h1>",
-    unsafe_allow_html=True
-)
-st.markdown(
-    "<p style='text-align:center;'>Ask questions using Company CIK or Upload an official 10-K / 10-Q PDF</p>",
-    unsafe_allow_html=True
-)
+st.title("📊 Financial Edge – SEC EDGAR Analyzer")
+st.caption("Answers are extracted directly from official SEC EDGAR 10-K / 10-Q filings")
 
-# ---------------- HELPERS ----------------
-HEADERS = {"User-Agent": "StudentProject/1.0 student@email.com"}
+HEADERS = {
+    "User-Agent": "AcademicProject/1.0 student@email.com"
+}
 
+# ---------------- CLEAN TEXT ----------------
 def clean_text(text):
-    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"<.*?>", " ", text)          # remove HTML
+    text = re.sub(r"&nbsp;", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
-def extract_text_from_pdf(file):
+# ---------------- PDF READER ----------------
+def extract_text_from_pdf(uploaded_file):
+    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
     text = ""
-    pdf = fitz.open(stream=file.read(), filetype="pdf")
-    for page in pdf:
+    for page in doc:
         text += page.get_text()
     return clean_text(text)
 
-def fetch_latest_10k(cik):
+# ---------------- FETCH SEC 10-K / 10-Q ----------------
+def fetch_sec_filing(cik):
     cik = cik.zfill(10)
-
     submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
-    sub = requests.get(submissions_url, headers=HEADERS)
+    r = requests.get(submissions_url, headers=HEADERS)
 
-    if sub.status_code != 200:
-        return None, None, None
+    if r.status_code != 200:
+        return None, None
 
-    data = sub.json()
-    company = data["name"]
+    data = r.json()
+    company = data.get("name", "Company")
 
     filings = data["filings"]["recent"]
-    for i, form in enumerate(filings["form"]):
-        if form == "10-K":
-            accession = filings["accessionNumber"][i].replace("-", "")
-            doc = filings["primaryDocument"][i]
-            filing_url = f"https://www.sec.gov/ixviewer/documents/{accession}/{doc}"
-            text_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession}/{doc}"
 
-            filing_text = requests.get(text_url, headers=HEADERS)
-            if filing_text.status_code != 200:
-                continue
+    for form, acc, doc in zip(
+        filings["form"],
+        filings["accessionNumber"],
+        filings["primaryDocument"]
+    ):
+        if form in ["10-K", "10-Q"]:
+            acc = acc.replace("-", "")
+            url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc}/{doc}"
+            html = requests.get(url, headers=HEADERS).text
 
-            return company, clean_text(filing_text.text), filing_url
+            soup = BeautifulSoup(html, "html.parser")
+            for tag in soup(["script", "style", "table"]):
+                tag.decompose()
 
-    return None, None, None
+            text = clean_text(soup.get_text(" "))
+            return text, url
 
-def find_relevant_section(text, question):
-    q = question.lower()
+    return None, None
 
-    if "risk" in q:
-        keys = ["risk factor", "risk factors"]
-    elif "growth" in q:
-        keys = ["growth", "strategy", "expansion"]
-    elif "revenue" in q:
-        keys = ["revenue", "sales", "income"]
-    elif "business" in q:
-        keys = ["business", "overview", "operations"]
-    else:
-        keys = ["business", "risk", "revenue", "strategy"]
+# ---------------- FIND RELEVANT CONTENT ----------------
+def find_relevant_answer(question, text, max_words=200):
+    keywords = [w for w in question.lower().split() if len(w) > 3]
+    sentences = re.split(r"\. ", text)
 
-    chunks = []
-    for k in keys:
-        matches = re.findall(rf"(.{{0,1200}}{k}.{{0,1200}})", text, re.IGNORECASE)
-        chunks.extend(matches)
+    matched = []
+    for s in sentences:
+        if any(k in s.lower() for k in keywords):
+            matched.append(s)
 
-    return " ".join(chunks[:5])
+    if not matched:
+        matched = sentences[:10]
 
-def generate_answer(company, question, context):
-    if not context:
-        return "Relevant section not clearly found in filing."
+    answer_text = ". ".join(matched)
+    words = answer_text.split()[:max_words]
 
-    answer = (
-        f"Based on the official SEC filing of {company}, the following analysis answers the question: "
-        f"'{question}'.\n\n"
-        f"{context[:2000]}\n\n"
-        "This information is disclosed directly by the company in its SEC filing. "
-        "It reflects management’s discussion of operations, risks, revenue sources, "
-        "and future outlook. Investors use this section to evaluate performance, "
-        "stability, and long-term growth potential. The discussion highlights key drivers, "
-        "market conditions, regulatory exposure, and strategic priorities that may affect "
-        "financial results over time."
-    )
-
-    return answer
+    return " ".join(words) + "."
 
 # ---------------- UI ----------------
 left, right = st.columns([2, 1])
 
 with left:
-    st.subheader("🔘 Select Input Method")
+    st.subheader("Input Method")
 
-    mode = st.radio(
-        "Choose one",
+    option = st.radio(
+        "Choose one:",
         ["Enter Company CIK", "Upload SEC PDF"],
         horizontal=True
     )
 
-    cik = ""
-    uploaded_file = None
+    filing_text = None
+    source_link = ""
 
-    if mode == "Enter Company CIK":
+    if option == "Enter Company CIK":
         cik = st.text_input("Enter CIK (Example: 0000320193 for Apple)")
     else:
         uploaded_file = st.file_uploader("Upload 10-K / 10-Q PDF", type=["pdf"])
 
-    question = st.text_input("Ask your question (Business, Risks, Growth, Revenue, etc.)")
-    analyze = st.button("Analyze")
+    question = st.text_input(
+        "Ask your question (business model, risks, revenue, growth, etc.)"
+    )
 
-    if analyze:
-        if mode == "Enter Company CIK":
+    if st.button("Analyze"):
+        if option == "Enter Company CIK":
             if not cik:
                 st.error("Please enter a CIK")
                 st.stop()
 
-            company, text, link = fetch_latest_10k(cik)
-
-            if not text:
-                st.error("Could not fetch 10-K for this CIK")
+            filing_text, source_link = fetch_sec_filing(cik)
+            if filing_text is None:
+                st.error("Unable to fetch SEC filing")
                 st.stop()
-
-            context = find_relevant_section(text, question)
-            answer = generate_answer(company, question, context)
-
-            st.markdown("### ✅ Answer")
-            st.write(answer)
-            st.markdown(f"🔗 **Official SEC Filing:** [View 10-K]({link})")
 
         else:
-            if not uploaded_file:
+            if uploaded_file is None:
                 st.error("Please upload a PDF")
                 st.stop()
+            filing_text = extract_text_from_pdf(uploaded_file)
+            source_link = "Uploaded SEC PDF"
 
-            text = extract_text_from_pdf(uploaded_file)
-            context = find_relevant_section(text, question)
+        answer = find_relevant_answer(question, filing_text)
 
-            answer = generate_answer("Uploaded Company", question, context)
+        st.markdown("### 📌 Answer (Simple English)")
+        st.write(answer)
 
-            st.markdown("### ✅ Answer")
-            st.write(answer)
-            st.markdown("📄 **Source:** Uploaded SEC PDF")
+        st.markdown(f"🔗 **Official Source:** {source_link}")
 
 with right:
-    st.subheader("ℹ️ How this works")
+    st.subheader("Project Notes")
     st.markdown(
         """
-        ✔ Fetches official SEC filings  
-        ✔ Segments by Business / Risk / Growth / Revenue  
-        ✔ Long, detailed answers (15+ lines)  
-        ✔ No AI hallucination  
-        ✔ 100% SEC-based content  
+        ✔ Uses only SEC EDGAR data  
+        ✔ CIK AND PDF UPLOAD  
+        ✔ 100 % SEC based content  
         """
     )
-
-
