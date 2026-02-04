@@ -711,3 +711,4 @@ if analyze_clicked:
         
         if search_term or year_filter != "All Years" or rate_filter != "All Rates":
             st.markdown
+    
