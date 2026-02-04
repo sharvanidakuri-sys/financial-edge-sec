@@ -1,3 +1,8 @@
 streamlit
 requests
-pymupdf
+pandas
+numpy
+beautifulsoup4
+PyMuPDF
+matplotlib
+plotly
