@@ -1,11 +1,8 @@
 streamlit
 requests
 pandas
-numpy
-beautifulsoup4
 PyMuPDF
 matplotlib
-plotly
 groq
-python-deteutil
+
 
